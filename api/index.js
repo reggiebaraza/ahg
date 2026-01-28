@@ -140,18 +140,20 @@ function getCurrentWeather() {
     return conditions[Math.floor(Math.random() * conditions.length)];
 }
 
-app.get('/api/weather', (req, res) => {
+const router = express.Router();
+
+router.get('/weather', (req, res) => {
     res.json({
         weather: getCurrentWeather(),
         season: getCurrentSeason()
     });
 });
 
-app.get('/api/all-inspirations', (req, res) => {
+router.get('/all-inspirations', (req, res) => {
     res.json(INSPIRATIONS);
 });
 
-app.get('/api/inspirations', (req, res) => {
+router.get('/inspirations', (req, res) => {
     const season = getCurrentSeason();
     const weather = getCurrentWeather();
     
@@ -167,5 +169,7 @@ app.get('/api/inspirations', (req, res) => {
     
     res.json(filtered);
 });
+
+app.use('/api', router);
 
 module.exports = app;
