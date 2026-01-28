@@ -6,5 +6,7 @@
     "build": "cd frontend && npm install && npm run build && mv dist ..",
     "install-frontend": "cd frontend && npm install"
   },
-  "dependencies": {}
+  "dependencies": {
+    "node-fetch": "^2.7.0"
+  }
 }
