@@ -18,8 +18,5 @@
       "src": "/(.*)",
       "dest": "/frontend/dist/$1"
     }
-  ],
-  "env": {
-    "UNSPLASH_ACCESS_KEY": "@unsplash-access-key"
-  }
+  ]
 }
