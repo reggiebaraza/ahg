@@ -1,0 +1,195 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&family=Inter:wght@300;400;600&display=swap');
+
+:root {
+    --primary-color: #0f172a;
+    --accent-color: #f59e0b;
+    --text-color: #1e293b;
+    --bg-color: #f8fafc;
+    --card-bg: #ffffff;
+    --glass-bg: rgba(255, 255, 255, 0.8);
+}
+
+body {
+    background-color: var(--bg-color);
+    font-family: 'Inter', sans-serif;
+    color: var(--text-color);
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+}
+
+h1, h2, h3, .display-3 {
+    font-family: 'Playfair Display', serif;
+    font-weight: 700;
+    letter-spacing: -0.025em;
+}
+
+.hero {
+    background: linear-gradient(rgba(15, 23, 42, 0.7), rgba(15, 23, 42, 0.7)), url('https://images.unsplash.com/photo-1599940824399-b87987ceb72a?ixlib=rb-4.0.3&auto=format&fit=crop&w=2000&q=80');
+    background-size: cover;
+    background-position: center;
+    background-attachment: fixed;
+    color: white;
+    padding: 200px 0 160px;
+    text-align: center;
+    margin-bottom: 0;
+    position: relative;
+}
+
+.hero::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 100px;
+    background: linear-gradient(to top, var(--bg-color), transparent);
+}
+
+.hero h1 {
+    font-size: 5rem;
+    margin-bottom: 1.5rem;
+    text-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.hero .lead {
+    font-weight: 300;
+    font-size: 1.75rem;
+    opacity: 0.95;
+    max-width: 800px;
+    margin: 0 auto;
+}
+
+.badge-weather, .badge-season {
+    backdrop-filter: blur(8px);
+    background: rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
+    font-size: 0.85rem;
+    padding: 10px 20px;
+}
+
+.inspiration-card {
+    transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    border: none;
+    border-radius: 20px;
+    overflow: hidden;
+    background: var(--card-bg);
+    box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
+}
+
+.inspiration-card:hover {
+    transform: translateY(-10px) scale(1.02);
+    box-shadow: 0 20px 25px -5px rgb(0 0 0 / 0.1), 0 8px 10px -6px rgb(0 0 0 / 0.1);
+}
+
+.card-img-top {
+    height: 350px;
+    object-fit: cover;
+    transition: transform 0.8s ease;
+}
+
+.inspiration-card:hover .card-img-top {
+    transform: scale(1.1);
+}
+
+.card-body {
+    padding: 2.5rem;
+}
+
+.card-title {
+    font-size: 1.75rem;
+    margin-bottom: 1.25rem;
+    color: var(--primary-color);
+}
+
+.section-title {
+    text-align: center;
+    margin-bottom: 60px;
+    font-size: 3rem;
+}
+
+.badge {
+    padding: 10px 20px;
+    border-radius: 50px;
+    font-weight: 600;
+    text-transform: uppercase;
+    font-size: 0.75rem;
+    letter-spacing: 1px;
+}
+
+.badge-weather {
+    background-color: var(--accent-color);
+    color: white;
+}
+
+.badge-season {
+    background-color: var(--primary-color);
+    color: white;
+}
+
+.text-muted {
+    font-size: 0.9rem;
+    font-style: italic;
+}
+
+footer {
+    background-color: var(--primary-color) !important;
+    padding: 80px 0;
+}
+
+.leaflet-container {
+    z-index: 1;
+    border-radius: 20px;
+}
+
+.map-wrapper {
+    margin-top: -80px;
+    padding: 20px;
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border-radius: 30px;
+    box-shadow: 0 25px 50px -12px rgb(0 0 0 / 0.25);
+    border: 1px solid rgba(255,255,255,0.5);
+    margin-bottom: 100px;
+    position: relative;
+    z-index: 2;
+}
+
+.custom-popup .leaflet-popup-content-wrapper {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    border-radius: 15px;
+    padding: 5px;
+    box-shadow: 0 10px 15px -3px rgb(0 0 0 / 0.1);
+}
+
+.custom-popup .leaflet-popup-tip {
+    background: var(--glass-bg);
+}
+
+.backdrop-blur {
+    backdrop-filter: blur(4px);
+}
+
+.btn-outline-dark {
+    border-width: 2px;
+    font-weight: 600;
+    transition: all 0.3s ease;
+}
+
+.btn-outline-dark:hover {
+    background-color: var(--primary-color);
+    transform: translateY(-2px);
+}
+
+@media (max-width: 768px) {
+    .hero h1 {
+        font-size: 3rem;
+    }
+    .hero {
+        padding: 120px 0 100px;
+    }
+    .map-wrapper {
+        margin-top: -50px;
+        padding: 10px;
+    }
+}
