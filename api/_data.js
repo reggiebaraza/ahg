@@ -1,12 +1,3 @@
-const express = require('express');
-const cors = require('cors');
-
-const app = express();
-const PORT = process.env.PORT || 8080;
-
-app.use(cors());
-app.use(express.json());
-
 const INSPIRATIONS = [
     {
         id: 1,
@@ -140,36 +131,8 @@ function getCurrentWeather() {
     return conditions[Math.floor(Math.random() * conditions.length)];
 }
 
-const router = express.Router();
-
-router.get('/weather', (req, res) => {
-    res.json({
-        weather: getCurrentWeather(),
-        season: getCurrentSeason()
-    });
-});
-
-router.get('/all-inspirations', (req, res) => {
-    res.json(INSPIRATIONS);
-});
-
-router.get('/inspirations', (req, res) => {
-    const season = getCurrentSeason();
-    const weather = getCurrentWeather();
-    
-    let filtered = INSPIRATIONS.filter(insp => 
-        (insp.season === "ALL" || insp.season === season) &&
-        (insp.weatherCondition === "ANY" || insp.weatherCondition === weather)
-    );
-    
-    if (filtered.length === 0) {
-        // Return 2 random if none match
-        filtered = [...INSPIRATIONS].sort(() => 0.5 - Math.random()).slice(0, 2);
-    }
-    
-    res.json(filtered);
-});
-
-app.use('/api', router);
-
-module.exports = app;
+module.exports = {
+    INSPIRATIONS,
+    getCurrentSeason,
+    getCurrentWeather
+};

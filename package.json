@@ -6,8 +6,5 @@
     "build": "cd frontend && npm install && npm run build && mv dist ..",
     "install-frontend": "cd frontend && npm install"
   },
-  "dependencies": {
-    "cors": "^2.8.6",
-    "express": "^5.2.1"
-  }
+  "dependencies": {}
 }
