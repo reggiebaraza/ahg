@@ -6,34 +6,62 @@ function App() {
   const [allInspirations, setAllInspirations] = useState([])
   const [weatherData, setWeatherData] = useState({ weather: '...', season: '...' })
   const [loading, setLoading] = useState(true)
+  const [errors, setErrors] = useState([])
+
+  const fetchData = async () => {
+    try {
+      setLoading(true)
+      setErrors([])
+
+      // Use Promise.allSettled to handle each API independently
+      const results = await Promise.allSettled([
+        fetch('/api/inspirations').then(res => res.ok ? res.json() : Promise.reject('Inspirations API failed')),
+        fetch('/api/weather').then(res => res.ok ? res.json() : Promise.reject('Weather API failed')),
+        fetch('/api/all-inspirations').then(res => res.ok ? res.json() : Promise.reject('All inspirations API failed'))
+      ])
+
+      const newErrors = []
+
+      // Handle inspirations result
+      if (results[0].status === 'fulfilled') {
+        const inspData = results[0].value
+        setInspirations(Array.isArray(inspData) ? inspData : [])
+      } else {
+        console.error("Error fetching inspirations:", results[0].reason)
+        newErrors.push('Daily inspirations temporarily unavailable')
+        setInspirations([])
+      }
+
+      // Handle weather result
+      if (results[1].status === 'fulfilled') {
+        const weatherInfo = results[1].value
+        setWeatherData(weatherInfo || { weather: 'Unknown', season: 'Unknown' })
+      } else {
+        console.error("Error fetching weather:", results[1].reason)
+        newErrors.push('Weather data temporarily unavailable')
+        setWeatherData({ weather: 'Unknown', season: 'Unknown' })
+      }
+
+      // Handle all inspirations result
+      if (results[2].status === 'fulfilled') {
+        const allInspData = results[2].value
+        setAllInspirations(Array.isArray(allInspData) ? allInspData : [])
+      } else {
+        console.error("Error fetching all inspirations:", results[2].reason)
+        newErrors.push('Map data temporarily unavailable')
+        setAllInspirations([])
+      }
+
+      setErrors(newErrors)
+      setLoading(false)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+      setErrors(['Unable to load data. Please try again.'])
+      setLoading(false)
+    }
+  }
 
   useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const [inspRes, weatherRes, allInspRes] = await Promise.all([
-          fetch('/api/inspirations'),
-          fetch('/api/weather'),
-          fetch('/api/all-inspirations')
-        ])
-        
-        if (!inspRes.ok || !weatherRes.ok || !allInspRes.ok) {
-          throw new Error('Failed to fetch data from API')
-        }
-
-        const inspData = await inspRes.json()
-        const weatherInfo = await weatherRes.json()
-        const allInspData = await allInspRes.json()
-        
-        setInspirations(Array.isArray(inspData) ? inspData : [])
-        setWeatherData(weatherInfo || { weather: 'Unknown', season: 'Unknown' })
-        setAllInspirations(Array.isArray(allInspData) ? allInspData : [])
-        setLoading(false)
-      } catch (error) {
-        console.error("Error fetching data:", error)
-        setLoading(false)
-      }
-    }
-
     fetchData()
   }, [])
 
@@ -70,6 +98,39 @@ function App() {
       </div>
 
       <div className="container">
+        {/* Error Banner */}
+        {errors.length > 0 && (
+          <div className="row justify-content-center mt-4">
+            <div className="col-xl-10">
+              <div className="alert alert-warning alert-dismissible fade show d-flex align-items-center" role="alert">
+                <i className="bi bi-exclamation-triangle-fill me-3 fs-4"></i>
+                <div className="flex-grow-1">
+                  <strong>Some features are temporarily unavailable:</strong>
+                  <ul className="mb-0 mt-2">
+                    {errors.map((error, idx) => (
+                      <li key={idx}>{error}</li>
+                    ))}
+                  </ul>
+                </div>
+                <button
+                  onClick={fetchData}
+                  className="btn btn-sm btn-outline-warning ms-3"
+                  style={{ whiteSpace: 'nowrap' }}
+                >
+                  <i className="bi bi-arrow-clockwise me-1"></i>
+                  Retry
+                </button>
+                <button
+                  type="button"
+                  className="btn-close ms-2"
+                  onClick={() => setErrors([])}
+                  aria-label="Close"
+                ></button>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="row justify-content-center">
           <div className="col-xl-10">
             <MapComponent allInspirations={allInspirations} todayInspirations={inspirations} />

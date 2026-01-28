@@ -1,5 +1,10 @@
 const fetch = require('node-fetch');
+const cache = require('./_cache');
+const { INSPIRATIONS } = require('./_data');
+const { selectLocations, getCurrentConditions } = require('./_filteringEngine');
+const { enrichLocationsWithImages } = require('./_unsplashService');
 
+// Get current season helper
 function getCurrentSeason() {
     const month = new Date().getMonth() + 1;
     if (month >= 3 && month <= 5) return "SPRING";
@@ -8,75 +13,90 @@ function getCurrentSeason() {
     return "WINTER";
 }
 
-async function getInspirations(weather) {
-    // Increase limit for better filtering
-    const query = `
-        [out:json][timeout:25];
-        area[name="Berlin"]->.searchArea;
-        (
-          node["tourism"="viewpoint"](area.searchArea);
-          node["historic"="monument"](area.searchArea);
-          node["tourism"="attraction"](area.searchArea);
-        );
-        out body 30;
-    `;
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-    
+// Get weather from our weather API
+async function getWeatherData() {
     try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        let elements = data.elements;
-        
-        // Pseudo-random selection to simulate "Today's selection"
-        // In a real app, we might use the date as a seed
-        const day = new Date().getDate();
-        elements = elements.sort((a, b) => (a.id * day) % 100 - (b.id * day) % 100).slice(0, 3);
-
-        return elements.map((el) => {
-            const name = el.tags.name || el.tags.description || `Spot ${el.id}`;
-            const imageUrl = `https://images.unsplash.com/photo-1560969184-10fe8719e047?auto=format&fit=crop&w=800&q=80`;
-            
+        // Check cache first
+        const cacheKey = 'weather:berlin';
+        const cached = cache.get(cacheKey);
+        if (cached) {
             return {
-                id: el.id,
-                title: name,
-                description: el.tags.description || `A recommended spot for a ${weather.toLowerCase()} day in Berlin.`,
-                location: el.tags["addr:street"] || "Berlin",
-                lat: el.lat,
-                lng: el.lon,
-                mood: weather === "SUNNY" ? "Vibrant" : "Atmospheric",
-                season: getCurrentSeason(),
-                weatherCondition: weather,
-                timeOfDay: "ANY",
-                imageUrl: imageUrl
+                weather: cached.weather,
+                season: cached.season
             };
-        });
+        }
+
+        // Call our own weather endpoint (would need full URL in production)
+        // For now, use wttr.in directly
+        const response = await fetch('https://wttr.in/Berlin?format=j1', { timeout: 5000 });
+        const data = await response.json();
+        const current = data.current_condition[0];
+
+        const weatherDesc = current.weatherDesc[0].value.toLowerCase();
+        let weather = "SUNNY";
+
+        if (weatherDesc.includes("fog") && !weatherDesc.includes("mist")) {
+            weather = "FOGGY";
+        } else if (weatherDesc.includes("rain") || weatherDesc.includes("drizzle") || weatherDesc.includes("shower")) {
+            weather = "RAINY";
+        } else if (weatherDesc.includes("snow") || weatherDesc.includes("sleet") || weatherDesc.includes("ice")) {
+            weather = "SNOWY";
+        } else if (weatherDesc.includes("cloud") || weatherDesc.includes("overcast") || weatherDesc.includes("mist")) {
+            weather = "CLOUDY";
+        }
+
+        return {
+            weather,
+            season: getCurrentSeason()
+        };
     } catch (error) {
-        console.error("OSM fetch error:", error);
-        return [];
+        console.error("Weather fetch error:", error);
+        // Fallback to random weather
+        const conditions = ["SUNNY", "RAINY", "CLOUDY", "SNOWY"];
+        return {
+            weather: conditions[Math.floor(Math.random() * conditions.length)],
+            season: getCurrentSeason()
+        };
     }
 }
 
 module.exports = async (req, res) => {
     try {
-        // We can't easily call our own API on Vercel like this without full URL,
-        // so we just calculate weather here or assume a default.
-        // For simplicity and robustness, let's just use a default weather if we can't fetch it, 
-        // or better, use the same logic as weather.js.
-        
-        const weatherConditions = ["SUNNY", "RAINY", "CLOUDY", "SNOWY"];
-        const weather = weatherConditions[Math.floor(Math.random() * weatherConditions.length)];
-        
-        const inspirations = await getInspirations(weather);
-        
-        if (inspirations.length === 0) {
-            const { INSPIRATIONS } = require('./_data');
-            res.status(200).json(INSPIRATIONS.slice(0, 3));
-        } else {
-            res.status(200).json(inspirations);
+        // Check if we have today's inspirations cached
+        const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+        const cacheKey = `inspirations:${today}`;
+        const cached = cache.get(cacheKey);
+
+        if (cached) {
+            return res.status(200).json(cached);
         }
-    } catch (e) {
-        const { INSPIRATIONS } = require('./_data');
-        res.status(200).json(INSPIRATIONS.slice(0, 3));
+
+        // Get current weather and season
+        const { weather, season } = await getWeatherData();
+
+        // Get current conditions for filtering
+        const conditions = getCurrentConditions(weather, season, new Date());
+
+        // Use smart filtering engine to select 3-5 locations
+        const selectedLocations = selectLocations(
+            INSPIRATIONS,
+            conditions,
+            4, // Return 4 locations
+            new Date()
+        );
+
+        // Enrich with Unsplash images (limit to 4 API calls)
+        const enrichedLocations = await enrichLocationsWithImages(selectedLocations, 4);
+
+        // Cache today's selections for 1 hour
+        cache.set(cacheKey, enrichedLocations, 60 * 60 * 1000);
+
+        res.status(200).json(enrichedLocations);
+    } catch (error) {
+        console.error("Error generating inspirations:", error);
+
+        // Fallback to first 3 items from dataset
+        const fallback = INSPIRATIONS.slice(0, 3);
+        res.status(200).json(fallback);
     }
 };

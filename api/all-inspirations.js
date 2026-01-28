@@ -1,58 +1,33 @@
-const fetch = require('node-fetch');
-
-async function getOSMInspirations() {
-    const query = `
-        [out:json][timeout:25];
-        area[name="Berlin"]->.searchArea;
-        (
-          node["tourism"="viewpoint"](area.searchArea);
-          node["historic"="monument"](area.searchArea);
-          node["historic"="memorial"](area.searchArea);
-          node["tourism"="attraction"](area.searchArea);
-          node["landmark"="yes"](area.searchArea);
-        );
-        out body 50;
-    `;
-    const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-    
-    try {
-        const response = await fetch(url);
-        const data = await response.json();
-        
-        return data.elements.map((el, index) => {
-            const name = el.tags.name || el.tags.description || `Spot ${el.id}`;
-            const type = el.tags.tourism || el.tags.historic || "Sights";
-            
-            // Generate a semi-realistic image URL based on the name or use a default Berlin one
-            const imageUrl = `https://source.unsplash.com/featured/?berlin,${encodeURIComponent(name.split(' ')[0])}`;
-            
-            return {
-                id: el.id,
-                title: name,
-                description: el.tags.description || `A beautiful ${type} in Berlin.`,
-                location: el.tags["addr:street"] ? `${el.tags["addr:street"]} ${el.tags["addr:housenumber"] || ""}` : "Berlin",
-                lat: el.lat,
-                lng: el.lon,
-                mood: "Urban",
-                season: "ALL",
-                weatherCondition: "ANY",
-                timeOfDay: "ANY",
-                imageUrl: imageUrl
-            };
-        });
-    } catch (error) {
-        console.error("OSM fetch error:", error);
-        return [];
-    }
-}
+const cache = require('./_cache');
+const { INSPIRATIONS } = require('./_data');
+const { enrichLocationsWithImages } = require('./_unsplashService');
 
 module.exports = async (req, res) => {
-    const inspirations = await getOSMInspirations();
-    if (inspirations.length === 0) {
-        // Fallback to minimal data if API fails
-        const { INSPIRATIONS } = require('./_data');
+    try {
+        // Check cache first (24 hour TTL for all inspirations)
+        const cacheKey = 'all-inspirations:full';
+        const cached = cache.get(cacheKey);
+
+        if (cached) {
+            return res.status(200).json(cached);
+        }
+
+        // Return all 80 curated locations
+        // Optionally enrich with Unsplash images (limited to avoid rate limits)
+        // Since this is called less frequently, we can enrich more locations
+        const enrichedLocations = await enrichLocationsWithImages(
+            INSPIRATIONS,
+            10 // Limit to 10 API calls per request
+        );
+
+        // Cache for 24 hours
+        cache.set(cacheKey, enrichedLocations, cache.TTL.LOCATIONS);
+
+        res.status(200).json(enrichedLocations);
+    } catch (error) {
+        console.error("Error fetching all inspirations:", error);
+
+        // Fallback to returning the dataset as-is
         res.status(200).json(INSPIRATIONS);
-    } else {
-        res.status(200).json(inspirations);
     }
 };
