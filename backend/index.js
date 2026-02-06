@@ -140,11 +140,35 @@ function getCurrentWeather() {
     return conditions[Math.floor(Math.random() * conditions.length)];
 }
 
+const WEATHER_CACHE_MS = 1000 * 60 * 30; // 30 minutes
+let cachedConditions = null;
+let cachedAt = 0;
+
+function getCurrentConditions() {
+    const now = Date.now();
+    if (!cachedConditions || (now - cachedAt) > WEATHER_CACHE_MS) {
+        cachedConditions = {
+            weather: getCurrentWeather(),
+            season: getCurrentSeason()
+        };
+        cachedAt = now;
+        return cachedConditions;
+    }
+
+    const season = getCurrentSeason();
+    if (season !== cachedConditions.season) {
+        cachedConditions = {
+            ...cachedConditions,
+            season
+        };
+        cachedAt = now;
+    }
+
+    return cachedConditions;
+}
+
 app.get('/api/weather', (req, res) => {
-    res.json({
-        weather: getCurrentWeather(),
-        season: getCurrentSeason()
-    });
+    res.json(getCurrentConditions());
 });
 
 app.get('/api/all-inspirations', (req, res) => {
@@ -152,8 +176,7 @@ app.get('/api/all-inspirations', (req, res) => {
 });
 
 app.get('/api/inspirations', (req, res) => {
-    const season = getCurrentSeason();
-    const weather = getCurrentWeather();
+    const { season, weather } = getCurrentConditions();
     
     let filtered = INSPIRATIONS.filter(insp => 
         (insp.season === "ALL" || insp.season === season) &&
