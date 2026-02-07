@@ -24,6 +24,11 @@ Open `index.html` in a browser.
 
 Edit `data.js` to add/remove locations or change copy.
 
+## External data
+
+- Weather data: Open-Meteo (no API key required).
+- Images: Wikimedia Commons API (no API key required).
+
 ## Notes
 
 - Leaflet is loaded from a CDN and requires no build.

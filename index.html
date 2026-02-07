@@ -26,7 +26,7 @@
           <p class="eyebrow">A daily field guide for photographers</p>
           <h1>Find the scene, not just the spot.</h1>
           <p class="lead">
-            Berlin Frame Atlas curates places by atmosphere, time of day, and mood. No backend. No broken links. Just a beautiful static guide you can deploy anywhere.
+            Daily inspiration for Berlin, tuned to weather, season, and light. This is a static, API-driven guide you can deploy anywhere without a backend.
           </p>
           <div class="hero-pills">
             <div class="pill">
@@ -36,6 +36,10 @@
             <div class="pill">
               <span class="pill-label">Time</span>
               <span id="time-pill" class="pill-value">—</span>
+            </div>
+            <div class="pill">
+              <span class="pill-label">Weather</span>
+              <span id="weather-pill" class="pill-value">—</span>
             </div>
             <div class="pill">
               <span class="pill-label">Locale</span>
@@ -87,14 +91,45 @@
 
         <aside class="hero-panel">
           <div class="panel-header">
-            <h2>Today’s Micro-Routes</h2>
-            <p>Three quick story arcs for a 90-minute photo walk.</p>
+            <p class="panel-eyebrow">Atmosphere now</p>
+            <div class="panel-top">
+              <div>
+                <h2 id="weather-summary">—</h2>
+                <p id="weather-detail" class="panel-muted">—</p>
+              </div>
+              <div id="weather-badge" class="weather-badge">—</div>
+            </div>
+          </div>
+          <div class="weather-grid">
+            <div class="weather-stat">
+              <span class="stat-label">Temp</span>
+              <span id="temp-value" class="stat-value">—</span>
+            </div>
+            <div class="weather-stat">
+              <span class="stat-label">Wind</span>
+              <span id="wind-value" class="stat-value">—</span>
+            </div>
+            <div class="weather-stat">
+              <span class="stat-label">Sunrise</span>
+              <span id="sunrise-value" class="stat-value">—</span>
+            </div>
+            <div class="weather-stat">
+              <span class="stat-label">Sunset</span>
+              <span id="sunset-value" class="stat-value">—</span>
+            </div>
+          </div>
+          <div class="mood-row">
+            <span class="mood-label">Suggested mood</span>
+            <span id="mood-suggestion" class="mood-chip">—</span>
+          </div>
+          <div class="panel-divider"></div>
+          <div class="panel-header">
+            <h3>Today’s Micro-Routes</h3>
+            <p class="panel-muted">Three fast story arcs for a 60–90 minute walk.</p>
           </div>
           <div id="today-list" class="today-list"></div>
           <div class="panel-footer">
-            <div class="tip">
-              Tip: tap a marker to preview a shot and jump back to its card.
-            </div>
+            Tip: tap a marker to preview a shot and jump back to its card.
           </div>
         </aside>
       </div>
@@ -104,7 +139,7 @@
       <section id="map" class="map-section">
         <div class="section-header">
           <h2>Atlas View</h2>
-          <p>Explore all curated locations and see what fits the moment.</p>
+          <p>Explore every location and build your own story sequence.</p>
         </div>
         <div id="map-root" class="map-root"></div>
         <div class="map-legend">
@@ -127,6 +162,7 @@
         <div>
           <h3>Berlin Frame Atlas</h3>
           <p>Static. Fast. Deployable. No backend required.</p>
+          <p class="footer-small">Weather data by Open-Meteo. Images via Wikimedia Commons.</p>
         </div>
         <div class="footer-meta">
           <span id="footer-date">—</span>
