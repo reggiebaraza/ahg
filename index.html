@@ -71,6 +71,18 @@
               </select>
             </div>
             <div class="filter">
+              <label for="weather-filter">Weather</label>
+              <select id="weather-filter">
+                <option value="AUTO">Auto (live)</option>
+                <option value="ALL">Any weather</option>
+                <option value="SUNNY">Sunny</option>
+                <option value="CLOUDY">Cloudy</option>
+                <option value="RAINY">Rainy</option>
+                <option value="SNOWY">Snowy</option>
+                <option value="FOGGY">Foggy</option>
+              </select>
+            </div>
+            <div class="filter">
               <label for="mood-filter">Mood</label>
               <select id="mood-filter">
                 <option value="ALL">All moods</option>
@@ -170,6 +182,26 @@
         </div>
       </div>
     </footer>
+
+    <div id="image-modal" class="modal" aria-hidden="true">
+      <div class="modal-content" role="dialog" aria-modal="true">
+        <button id="modal-close" class="modal-close" aria-label="Close preview">Close</button>
+        <img id="modal-image" class="modal-image" alt="" />
+        <div class="modal-body">
+          <div>
+            <h3 id="modal-title">—</h3>
+            <p id="modal-description" class="modal-description">—</p>
+          </div>
+          <div class="modal-meta">
+            <span id="modal-location">—</span>
+            <div class="modal-links">
+              <a id="modal-maps" href="#" target="_blank" rel="noopener">Open in Maps</a>
+              <a id="modal-source" href="#" target="_blank" rel="noopener">Source</a>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
 
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
     <script type="module" src="app.js"></script>

@@ -28,8 +28,9 @@ Edit `data.js` to add/remove locations or change copy.
 
 - Weather data: Open-Meteo (no API key required).
 - Images: Wikimedia Commons API (no API key required).
+- Extra locations: Wikipedia API (Category: Tourist attractions in Berlin).
 
 ## Notes
 
 - Leaflet is loaded from a CDN and requires no build.
-- All data is static for reliability.
+- Base locations are static; weather, images, and extra locations update automatically.

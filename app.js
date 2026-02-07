@@ -9,6 +9,7 @@ const todayList = document.getElementById('today-list');
 const cardsRoot = document.getElementById('cards');
 const seasonFilter = document.getElementById('season-filter');
 const timeFilter = document.getElementById('time-filter');
+const weatherFilter = document.getElementById('weather-filter');
 const moodFilter = document.getElementById('mood-filter');
 const resetButton = document.getElementById('reset-filters');
 const weatherSummary = document.getElementById('weather-summary');
@@ -20,27 +21,45 @@ const sunriseValue = document.getElementById('sunrise-value');
 const sunsetValue = document.getElementById('sunset-value');
 const moodSuggestion = document.getElementById('mood-suggestion');
 
+const modal = document.getElementById('image-modal');
+const modalClose = document.getElementById('modal-close');
+const modalImage = document.getElementById('modal-image');
+const modalTitle = document.getElementById('modal-title');
+const modalDescription = document.getElementById('modal-description');
+const modalLocation = document.getElementById('modal-location');
+const modalMaps = document.getElementById('modal-maps');
+const modalSource = document.getElementById('modal-source');
+
 const berlinCenter = [52.52, 13.405];
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
+const WIKI_API = 'https://en.wikipedia.org/w/api.php';
 const WEATHER_API = 'https://api.open-meteo.com/v1/forecast';
 
-const CACHE_VERSION = 1;
+const CACHE_VERSION = 2;
 const WEATHER_CACHE_KEY = `weather-cache-v${CACHE_VERSION}`;
 const WEATHER_CACHE_TTL = 1000 * 60 * 20;
 const IMAGE_CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
+const EXTRA_CACHE_KEY = `extra-locations-v${CACHE_VERSION}`;
+const EXTRA_CACHE_TTL = 1000 * 60 * 60 * 12;
 
 let map;
 let markerLayer;
 let scheduled = false;
+let locationIndex = new Map();
 
 const state = {
   weather: null,
-  locations: LOCATIONS.map((loc) => ({
+  baseLocations: LOCATIONS.map((loc) => ({
     ...loc,
     imageUrl: loc.fallbackImage,
     sourceUrl: ''
-  }))
+  })),
+  extraLocations: []
 };
+
+function getAllLocations() {
+  return [...state.baseLocations, ...state.extraLocations];
+}
 
 function getSeason(date = new Date()) {
   const month = date.getMonth() + 1;
@@ -62,6 +81,11 @@ function formatLabel(value) {
   if (!value) return '—';
   const cleaned = value.replace(/_/g, ' ');
   return cleaned.charAt(0) + cleaned.slice(1).toLowerCase();
+}
+
+function formatSentence(value) {
+  if (!value) return '';
+  return value.charAt(0).toUpperCase() + value.slice(1);
 }
 
 function getWeatherCategory(code) {
@@ -90,11 +114,13 @@ function createSeededRandom(seed) {
 function resolveFilters(context) {
   const seasonValue = seasonFilter.value === 'AUTO' ? context.season : seasonFilter.value;
   const timeValue = timeFilter.value === 'AUTO' ? context.timeOfDay : timeFilter.value;
+  const weatherValue = weatherFilter.value === 'AUTO' ? context.weatherCategory : weatherFilter.value;
 
   return {
     season: seasonValue,
     timeOfDay: timeValue,
-    mood: moodFilter.value
+    mood: moodFilter.value,
+    weather: weatherValue
   };
 }
 
@@ -104,7 +130,8 @@ function filterLocations(locations, context) {
     const seasonMatch = filters.season === 'ALL' || location.season === 'ALL' || location.season === filters.season;
     const timeMatch = filters.timeOfDay === 'ALL' || location.timeOfDay === 'ANY' || location.timeOfDay === filters.timeOfDay;
     const moodMatch = filters.mood === 'ALL' || location.mood === filters.mood;
-    return seasonMatch && timeMatch && moodMatch;
+    const weatherMatch = filters.weather === 'ALL' || location.weather === 'ANY' || location.weather === filters.weather;
+    return seasonMatch && timeMatch && moodMatch && weatherMatch;
   });
 }
 
@@ -149,13 +176,28 @@ function getDailySelection(locations, context, count = 3) {
   return picks;
 }
 
+function createMapsUrl(location) {
+  if (location.lat && location.lng) {
+    return `https://www.google.com/maps/search/?api=1&query=${location.lat},${location.lng}`;
+  }
+  return `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${location.location} Berlin`)}`;
+}
+
+function updateLocationIndex() {
+  locationIndex = new Map();
+  getAllLocations().forEach((location) => {
+    locationIndex.set(String(location.id), location);
+  });
+}
+
 function renderTodaySelection(selection) {
   todayList.innerHTML = '';
   selection.forEach((location) => {
     const card = document.createElement('div');
     card.className = 'today-card';
+    const mapsUrl = createMapsUrl(location);
     card.innerHTML = `
-      <img src="${location.imageUrl}" alt="${location.title}" />
+      <img src="${location.imageUrl}" alt="${location.title}" data-location-id="${location.id}" />
       <div>
         <h4>${location.title}</h4>
         <p>${location.location}</p>
@@ -163,12 +205,15 @@ function renderTodaySelection(selection) {
           <span class="tag">${formatLabel(location.mood)}</span>
           <span class="tag">${formatLabel(location.timeOfDay === 'ANY' ? 'Any time' : location.timeOfDay)}</span>
         </div>
+        <div class="card-meta">
+          <a href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
+        </div>
       </div>
     `;
     const image = card.querySelector('img');
     image.loading = 'lazy';
     image.onerror = () => {
-      image.src = location.fallbackImage;
+      image.src = location.fallbackImage || location.imageUrl;
     };
     todayList.appendChild(card);
   });
@@ -195,10 +240,11 @@ function renderCards(locations) {
     card.className = 'card';
     const weatherTag = location.weather && location.weather !== 'ANY' ? `<span class="tag">${formatLabel(location.weather)}</span>` : '';
     const sourceLink = location.sourceUrl
-      ? `<a href="${location.sourceUrl}" target="_blank" rel="noopener">source</a>`
+      ? `<a href="${location.sourceUrl}" target="_blank" rel="noopener">Source</a>`
       : '';
+    const mapsUrl = createMapsUrl(location);
     card.innerHTML = `
-      <img src="${location.imageUrl}" alt="${location.title}" />
+      <img src="${location.imageUrl}" alt="${location.title}" data-location-id="${location.id}" />
       <div class="card-content">
         <div class="tag-row">
           <span class="tag">${formatLabel(location.mood)}</span>
@@ -209,14 +255,17 @@ function renderCards(locations) {
         <p>${location.description}</p>
         <div class="card-meta">
           <span>${location.location}</span>
-          ${sourceLink}
+          <div class="modal-links">
+            <a href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
+            ${sourceLink}
+          </div>
         </div>
       </div>
     `;
     const image = card.querySelector('img');
     image.loading = 'lazy';
     image.onerror = () => {
-      image.src = location.fallbackImage;
+      image.src = location.fallbackImage || location.imageUrl;
     };
     cardsRoot.appendChild(card);
   });
@@ -247,9 +296,11 @@ function renderMap(locations, todayIds) {
   locations.forEach((location) => {
     if (!location.lat || !location.lng) return;
     const marker = L.marker([location.lat, location.lng], { icon: createMarker(todayIds.has(location.id)) });
+    const mapsUrl = createMapsUrl(location);
     marker.bindPopup(`
       <strong>${location.title}</strong><br />
-      ${location.location}
+      ${location.location}<br />
+      <a href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
     `);
     marker.addTo(markerLayer);
   });
@@ -418,6 +469,67 @@ async function hydrateImages(locations) {
   await Promise.all(workers);
 }
 
+function assignMood(seed) {
+  const moods = ['ROMANTIC', 'URBAN', 'ATMOSPHERIC', 'MINIMALIST', 'FUTURISTIC', 'MAJESTIC', 'WARM', 'MELANCHOLIC', 'EDGY'];
+  const index = Math.abs(seed) % moods.length;
+  return moods[index];
+}
+
+function assignTimeOfDay(seed) {
+  const times = ['MORNING', 'AFTERNOON', 'EVENING', 'NIGHT', 'ANY'];
+  const index = Math.abs(seed) % times.length;
+  return times[index];
+}
+
+async function fetchExtraLocations() {
+  const cached = loadFromCache(EXTRA_CACHE_KEY, EXTRA_CACHE_TTL);
+  if (cached) return cached;
+
+  const categoryUrl = `${WIKI_API}?action=query&list=categorymembers&cmtitle=Category:Tourist_attractions_in_Berlin&cmlimit=40&format=json&origin=*`;
+  const categoryResponse = await fetch(categoryUrl);
+  if (!categoryResponse.ok) return [];
+  const categoryData = await categoryResponse.json();
+  const members = categoryData?.query?.categorymembers || [];
+  const pageIds = members.filter((member) => member.ns === 0).map((member) => member.pageid);
+  if (pageIds.length === 0) return [];
+
+  const infoUrl = `${WIKI_API}?action=query&pageids=${pageIds.join('|')}&prop=coordinates|pageimages|pageprops&piprop=original&pithumbsize=1200&format=json&origin=*`;
+  const infoResponse = await fetch(infoUrl);
+  if (!infoResponse.ok) return [];
+  const infoData = await infoResponse.json();
+  const pages = Object.values(infoData?.query?.pages || {});
+
+  const baseTitles = new Set(state.baseLocations.map((loc) => loc.title.toLowerCase()));
+  const locations = pages
+    .filter((page) => page?.coordinates?.length)
+    .map((page, index) => {
+      const coord = page.coordinates[0];
+      const shortDesc = page.pageprops?.['wikibase-shortdesc'] || '';
+      const imageUrl = page.original?.source || page.thumbnail?.source || '';
+      const seed = page.pageid || index;
+      return {
+        id: 1000 + index,
+        title: page.title,
+        description: shortDesc ? formatSentence(shortDesc) : 'A Berlin landmark worth exploring for new compositions.',
+        location: page.title,
+        lat: coord.lat,
+        lng: coord.lon,
+        mood: assignMood(seed),
+        season: 'ALL',
+        timeOfDay: assignTimeOfDay(seed),
+        weather: 'ANY',
+        imageUrl: imageUrl || '',
+        fallbackImage: imageUrl || 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80',
+        sourceUrl: `https://en.wikipedia.org/?curid=${page.pageid}`,
+        dynamic: true
+      };
+    })
+    .filter((location) => !baseTitles.has(location.title.toLowerCase()));
+
+  saveToCache(EXTRA_CACHE_KEY, locations);
+  return locations;
+}
+
 function buildContext() {
   const now = new Date();
   const season = getSeason(now);
@@ -444,13 +556,51 @@ function renderAll() {
     suggestedMood: context.suggestedMood
   });
 
-  const filtered = filterLocations(state.locations, context);
-  const todaySelection = getDailySelection(state.locations, context, 3);
+  const allLocations = getAllLocations();
+  updateLocationIndex();
+
+  const filtered = filterLocations(allLocations, context);
+  const todaySelection = getDailySelection(state.baseLocations, context, 3);
   const todayIds = new Set(todaySelection.map((loc) => loc.id));
 
   renderTodaySelection(todaySelection);
   renderCards(filtered);
-  renderMap(filtered.length > 0 ? filtered : state.locations, todayIds);
+  renderMap(filtered.length > 0 ? filtered : allLocations, todayIds);
+}
+
+function openPreview(location) {
+  if (!location) return;
+  modalImage.src = location.imageUrl || location.fallbackImage || '';
+  modalImage.alt = location.title || 'Preview image';
+  modalTitle.textContent = location.title || 'Untitled';
+  modalDescription.textContent = location.description || 'A Berlin scene worth exploring.';
+  modalLocation.textContent = location.location || '';
+  modalMaps.href = createMapsUrl(location);
+
+  if (location.sourceUrl) {
+    modalSource.href = location.sourceUrl;
+    modalSource.style.display = 'inline-flex';
+  } else {
+    modalSource.style.display = 'none';
+  }
+
+  modal.classList.add('open');
+  modal.setAttribute('aria-hidden', 'false');
+}
+
+function closePreview() {
+  modal.classList.remove('open');
+  modal.setAttribute('aria-hidden', 'true');
+}
+
+function handlePreviewClick(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) return;
+  if (target.tagName !== 'IMG') return;
+  const locationId = target.dataset.locationId;
+  if (!locationId) return;
+  const location = locationIndex.get(locationId);
+  openPreview(location);
 }
 
 async function init() {
@@ -472,17 +622,36 @@ async function init() {
   }
 
   renderAll();
-  hydrateImages(state.locations);
+  hydrateImages(state.baseLocations);
+
+  try {
+    state.extraLocations = await fetchExtraLocations();
+    scheduleRender();
+  } catch (error) {
+    state.extraLocations = [];
+  }
 }
 
 seasonFilter.addEventListener('change', renderAll);
 timeFilter.addEventListener('change', renderAll);
+weatherFilter.addEventListener('change', renderAll);
 moodFilter.addEventListener('change', renderAll);
 resetButton.addEventListener('click', () => {
   seasonFilter.value = 'AUTO';
   timeFilter.value = 'AUTO';
+  weatherFilter.value = 'AUTO';
   moodFilter.value = 'ALL';
   renderAll();
+});
+
+cardsRoot.addEventListener('click', handlePreviewClick);
+todayList.addEventListener('click', handlePreviewClick);
+modal.addEventListener('click', (event) => {
+  if (event.target === modal) closePreview();
+});
+modalClose.addEventListener('click', closePreview);
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closePreview();
 });
 
 init();
