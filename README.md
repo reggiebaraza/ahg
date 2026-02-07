@@ -29,6 +29,7 @@ Edit `data.js` to add/remove locations or change copy.
 - Weather data: Open-Meteo (no API key required).
 - Images: Wikimedia Commons API (no API key required).
 - Extra locations: Wikipedia API (Category: Tourist attractions in Berlin).
+- Extra locations: Wikidata Query Service (geo search around Berlin).
 
 ## Notes
 

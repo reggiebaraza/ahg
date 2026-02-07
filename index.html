@@ -148,24 +148,31 @@
     </header>
 
     <main>
+      <section id="stories" class="grid-section">
+        <div class="section-header">
+          <h2>Story Cards</h2>
+          <p>Use these as prompts to craft a sequence, not just a single frame.</p>
+          <div class="section-meta">
+            <span id="card-count">—</span>
+            <span id="extra-status">Loading more locations…</span>
+          </div>
+        </div>
+        <div id="cards" class="cards"></div>
+      </section>
+
       <section id="map" class="map-section">
         <div class="section-header">
           <h2>Atlas View</h2>
           <p>Explore every location and build your own story sequence.</p>
+          <div class="section-meta">
+            <span id="map-count">—</span>
+          </div>
         </div>
         <div id="map-root" class="map-root"></div>
         <div class="map-legend">
           <div class="legend-item"><span class="dot dot-today"></span>Today’s picks</div>
           <div class="legend-item"><span class="dot dot-default"></span>All locations</div>
         </div>
-      </section>
-
-      <section id="stories" class="grid-section">
-        <div class="section-header">
-          <h2>Story Cards</h2>
-          <p>Use these as prompts to craft a sequence, not just a single frame.</p>
-        </div>
-        <div id="cards" class="cards"></div>
       </section>
     </main>
 

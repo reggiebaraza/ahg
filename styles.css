@@ -323,6 +323,21 @@ main {
   color: var(--muted);
 }
 
+.section-meta {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.section-meta span {
+  background: rgba(15, 17, 23, 0.05);
+  padding: 6px 10px;
+  border-radius: 999px;
+}
+
 .map-section {
   background: #fff;
   padding: 32px;

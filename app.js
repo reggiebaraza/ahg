@@ -7,6 +7,9 @@ const localePill = document.getElementById('locale-pill');
 const footerDate = document.getElementById('footer-date');
 const todayList = document.getElementById('today-list');
 const cardsRoot = document.getElementById('cards');
+const cardCount = document.getElementById('card-count');
+const mapCount = document.getElementById('map-count');
+const extraStatus = document.getElementById('extra-status');
 const seasonFilter = document.getElementById('season-filter');
 const timeFilter = document.getElementById('time-filter');
 const weatherFilter = document.getElementById('weather-filter');
@@ -33,14 +36,17 @@ const modalSource = document.getElementById('modal-source');
 const berlinCenter = [52.52, 13.405];
 const COMMONS_API = 'https://commons.wikimedia.org/w/api.php';
 const WIKI_API = 'https://en.wikipedia.org/w/api.php';
+const WIKIDATA_API = 'https://query.wikidata.org/sparql';
 const WEATHER_API = 'https://api.open-meteo.com/v1/forecast';
 
-const CACHE_VERSION = 2;
+const CACHE_VERSION = 3;
 const WEATHER_CACHE_KEY = `weather-cache-v${CACHE_VERSION}`;
 const WEATHER_CACHE_TTL = 1000 * 60 * 20;
 const IMAGE_CACHE_TTL = 1000 * 60 * 60 * 24 * 7;
 const EXTRA_CACHE_KEY = `extra-locations-v${CACHE_VERSION}`;
 const EXTRA_CACHE_TTL = 1000 * 60 * 60 * 12;
+const WIKIDATA_CACHE_KEY = `wikidata-locations-v${CACHE_VERSION}`;
+const WIKIDATA_CACHE_TTL = 1000 * 60 * 60 * 24;
 
 let map;
 let markerLayer;
@@ -54,7 +60,9 @@ const state = {
     imageUrl: loc.fallbackImage,
     sourceUrl: ''
   })),
-  extraLocations: []
+  extraLocations: [],
+  extrasLoaded: false,
+  extrasFailed: false
 };
 
 function getAllLocations() {
@@ -86,6 +94,29 @@ function formatLabel(value) {
 function formatSentence(value) {
   if (!value) return '';
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function escapeHtml(value) {
+  if (!value) return '';
+  return value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function safeUrl(value) {
+  if (!value) return '';
+  try {
+    const parsed = new URL(value, window.location.href);
+    if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+      return parsed.href;
+    }
+  } catch (error) {
+    return '';
+  }
+  return '';
 }
 
 function getWeatherCategory(code) {
@@ -196,11 +227,13 @@ function renderTodaySelection(selection) {
     const card = document.createElement('div');
     card.className = 'today-card';
     const mapsUrl = createMapsUrl(location);
+    const title = escapeHtml(location.title);
+    const place = escapeHtml(location.location);
     card.innerHTML = `
-      <img src="${location.imageUrl}" alt="${location.title}" data-location-id="${location.id}" />
+      <img src="${escapeHtml(safeUrl(location.imageUrl) || location.fallbackImage || '')}" alt="${title}" data-location-id="${location.id}" />
       <div>
-        <h4>${location.title}</h4>
-        <p>${location.location}</p>
+        <h4>${title}</h4>
+        <p>${place}</p>
         <div class="tag-row">
           <span class="tag">${formatLabel(location.mood)}</span>
           <span class="tag">${formatLabel(location.timeOfDay === 'ANY' ? 'Any time' : location.timeOfDay)}</span>
@@ -239,22 +272,26 @@ function renderCards(locations) {
     const card = document.createElement('div');
     card.className = 'card';
     const weatherTag = location.weather && location.weather !== 'ANY' ? `<span class="tag">${formatLabel(location.weather)}</span>` : '';
-    const sourceLink = location.sourceUrl
-      ? `<a href="${location.sourceUrl}" target="_blank" rel="noopener">Source</a>`
+    const sourceUrl = safeUrl(location.sourceUrl);
+    const sourceLink = sourceUrl
+      ? `<a href="${sourceUrl}" target="_blank" rel="noopener">Source</a>`
       : '';
     const mapsUrl = createMapsUrl(location);
+    const title = escapeHtml(location.title);
+    const description = escapeHtml(location.description);
+    const place = escapeHtml(location.location);
     card.innerHTML = `
-      <img src="${location.imageUrl}" alt="${location.title}" data-location-id="${location.id}" />
+      <img src="${escapeHtml(safeUrl(location.imageUrl) || location.fallbackImage || '')}" alt="${title}" data-location-id="${location.id}" />
       <div class="card-content">
         <div class="tag-row">
           <span class="tag">${formatLabel(location.mood)}</span>
           <span class="tag">${formatLabel(location.timeOfDay === 'ANY' ? 'Any time' : location.timeOfDay)}</span>
           ${weatherTag}
         </div>
-        <h3>${location.title}</h3>
-        <p>${location.description}</p>
+        <h3>${title}</h3>
+        <p>${description}</p>
         <div class="card-meta">
-          <span>${location.location}</span>
+          <span>${place}</span>
           <div class="modal-links">
             <a href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
             ${sourceLink}
@@ -284,7 +321,7 @@ function createMarker(isToday) {
 
 function renderMap(locations, todayIds) {
   if (!map) {
-    map = L.map('map-root', { scrollWheelZoom: false }).setView(berlinCenter, 12);
+    map = L.map('map-root', { scrollWheelZoom: false, preferCanvas: true }).setView(berlinCenter, 12);
     L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
       attribution: '&copy; OpenStreetMap contributors &copy; CARTO'
     }).addTo(map);
@@ -297,9 +334,11 @@ function renderMap(locations, todayIds) {
     if (!location.lat || !location.lng) return;
     const marker = L.marker([location.lat, location.lng], { icon: createMarker(todayIds.has(location.id)) });
     const mapsUrl = createMapsUrl(location);
+    const title = escapeHtml(location.title);
+    const place = escapeHtml(location.location);
     marker.bindPopup(`
-      <strong>${location.title}</strong><br />
-      ${location.location}<br />
+      <strong>${title}</strong><br />
+      ${place}<br />
       <a href="${mapsUrl}" target="_blank" rel="noopener">Open in Maps</a>
     `);
     marker.addTo(markerLayer);
@@ -485,7 +524,7 @@ async function fetchExtraLocations() {
   const cached = loadFromCache(EXTRA_CACHE_KEY, EXTRA_CACHE_TTL);
   if (cached) return cached;
 
-  const categoryUrl = `${WIKI_API}?action=query&list=categorymembers&cmtitle=Category:Tourist_attractions_in_Berlin&cmlimit=40&format=json&origin=*`;
+  const categoryUrl = `${WIKI_API}?action=query&list=categorymembers&cmtitle=Category:Tourist_attractions_in_Berlin&cmlimit=50&format=json&origin=*`;
   const categoryResponse = await fetch(categoryUrl);
   if (!categoryResponse.ok) return [];
   const categoryData = await categoryResponse.json();
@@ -508,7 +547,7 @@ async function fetchExtraLocations() {
       const imageUrl = page.original?.source || page.thumbnail?.source || '';
       const seed = page.pageid || index;
       return {
-        id: 1000 + index,
+        id: `wp-${page.pageid}`,
         title: page.title,
         description: shortDesc ? formatSentence(shortDesc) : 'A Berlin landmark worth exploring for new compositions.',
         location: page.title,
@@ -528,6 +567,88 @@ async function fetchExtraLocations() {
 
   saveToCache(EXTRA_CACHE_KEY, locations);
   return locations;
+}
+
+function parseWktPoint(value) {
+  const match = /Point\(([-0-9.]+) ([-0-9.]+)\)/.exec(value);
+  if (!match) return null;
+  return {
+    lng: parseFloat(match[1]),
+    lat: parseFloat(match[2])
+  };
+}
+
+function buildWikidataQuery(limit) {
+  return `SELECT ?item ?itemLabel ?coord ?image ?description WHERE {
+    SERVICE wikibase:around {
+      ?item wdt:P625 ?coord.
+      bd:serviceParam wikibase:center "Point(${berlinCenter[1]} ${berlinCenter[0]})"^^geo:wktLiteral.
+      bd:serviceParam wikibase:radius "15".
+    }
+    OPTIONAL { ?item wdt:P18 ?image. }
+    OPTIONAL { ?item schema:description ?description FILTER(LANG(?description) = "en"). }
+    SERVICE wikibase:label { bd:serviceParam wikibase:language "en". }
+  }
+  LIMIT ${limit}`;
+}
+
+async function fetchWikidataLocations() {
+  const cached = loadFromCache(WIKIDATA_CACHE_KEY, WIKIDATA_CACHE_TTL);
+  if (cached) return cached;
+
+  const query = buildWikidataQuery(350);
+  const url = `${WIKIDATA_API}?format=json&query=${encodeURIComponent(query)}`;
+  const response = await fetch(url, {
+    headers: {
+      Accept: 'application/sparql-results+json'
+    }
+  });
+
+  if (!response.ok) return [];
+  const data = await response.json();
+  const bindings = data?.results?.bindings || [];
+
+  const locations = bindings
+    .map((row) => {
+      const coord = parseWktPoint(row.coord?.value || '');
+      if (!coord) return null;
+      const itemUrl = row.item?.value || '';
+      const qid = itemUrl.split('/').pop();
+      const title = row.itemLabel?.value || qid || 'Berlin location';
+      const imageUrl = row.image?.value || '';
+      const description = row.description?.value || '';
+      const seed = qid ? qid.replace('Q', '') : title.length;
+      return {
+        id: `wd-${qid || Math.random().toString(36).slice(2)}`,
+        title,
+        description: description ? formatSentence(description) : 'A Berlin spot worth composing in a new way.',
+        location: title,
+        lat: coord.lat,
+        lng: coord.lng,
+        mood: assignMood(seed),
+        season: 'ALL',
+        timeOfDay: assignTimeOfDay(seed),
+        weather: 'ANY',
+        imageUrl: imageUrl || 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80',
+        fallbackImage: imageUrl || 'https://images.unsplash.com/photo-1489515217757-5fd1be406fef?auto=format&fit=crop&w=1400&q=80',
+        sourceUrl: itemUrl,
+        dynamic: true
+      };
+    })
+    .filter(Boolean);
+
+  saveToCache(WIKIDATA_CACHE_KEY, locations);
+  return locations;
+}
+
+function dedupeLocations(locations) {
+  const seen = new Set();
+  return locations.filter((location) => {
+    const key = `${location.title?.toLowerCase() || ''}-${location.lat?.toFixed(4) || ''}-${location.lng?.toFixed(4) || ''}`;
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function buildContext() {
@@ -566,19 +687,36 @@ function renderAll() {
   renderTodaySelection(todaySelection);
   renderCards(filtered);
   renderMap(filtered.length > 0 ? filtered : allLocations, todayIds);
+
+  if (cardCount) {
+    cardCount.textContent = `Showing ${filtered.length} of ${allLocations.length} locations`;
+  }
+  if (mapCount) {
+    mapCount.textContent = `Map markers: ${filtered.length > 0 ? filtered.length : allLocations.length}`;
+  }
+  if (extraStatus) {
+    if (state.extrasLoaded) {
+      extraStatus.textContent = `Live locations loaded: ${state.extraLocations.length}`;
+    } else if (state.extrasFailed) {
+      extraStatus.textContent = 'Live locations unavailable';
+    } else {
+      extraStatus.textContent = 'Loading more locations…';
+    }
+  }
 }
 
 function openPreview(location) {
   if (!location) return;
-  modalImage.src = location.imageUrl || location.fallbackImage || '';
+  modalImage.src = safeUrl(location.imageUrl) || location.fallbackImage || '';
   modalImage.alt = location.title || 'Preview image';
   modalTitle.textContent = location.title || 'Untitled';
   modalDescription.textContent = location.description || 'A Berlin scene worth exploring.';
   modalLocation.textContent = location.location || '';
   modalMaps.href = createMapsUrl(location);
 
-  if (location.sourceUrl) {
-    modalSource.href = location.sourceUrl;
+  const sourceUrl = safeUrl(location.sourceUrl);
+  if (sourceUrl) {
+    modalSource.href = sourceUrl;
     modalSource.style.display = 'inline-flex';
   } else {
     modalSource.style.display = 'none';
@@ -603,6 +741,25 @@ function handlePreviewClick(event) {
   openPreview(location);
 }
 
+async function loadExtras() {
+  const [wikipediaResult, wikidataResult] = await Promise.allSettled([
+    fetchExtraLocations(),
+    fetchWikidataLocations()
+  ]);
+
+  const extras = [];
+  if (wikipediaResult.status === 'fulfilled') {
+    extras.push(...wikipediaResult.value);
+  }
+  if (wikidataResult.status === 'fulfilled') {
+    extras.push(...wikidataResult.value);
+  }
+
+  state.extraLocations = dedupeLocations(extras);
+  state.extrasLoaded = true;
+  scheduleRender();
+}
+
 async function init() {
   const fallbackWeather = {
     weatherLabel: 'Overcast',
@@ -623,12 +780,11 @@ async function init() {
 
   renderAll();
   hydrateImages(state.baseLocations);
-
   try {
-    state.extraLocations = await fetchExtraLocations();
-    scheduleRender();
+    await loadExtras();
   } catch (error) {
-    state.extraLocations = [];
+    state.extrasFailed = true;
+    scheduleRender();
   }
 }
 
