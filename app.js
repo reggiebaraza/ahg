@@ -10,6 +10,8 @@ const cardsRoot = document.getElementById('cards');
 const cardCount = document.getElementById('card-count');
 const mapCount = document.getElementById('map-count');
 const extraStatus = document.getElementById('extra-status');
+const expandToggle = document.getElementById('expand-toggle');
+const showMoreButton = document.getElementById('show-more');
 const seasonFilter = document.getElementById('season-filter');
 const timeFilter = document.getElementById('time-filter');
 const weatherFilter = document.getElementById('weather-filter');
@@ -47,11 +49,14 @@ const EXTRA_CACHE_KEY = `extra-locations-v${CACHE_VERSION}`;
 const EXTRA_CACHE_TTL = 1000 * 60 * 60 * 12;
 const WIKIDATA_CACHE_KEY = `wikidata-locations-v${CACHE_VERSION}`;
 const WIKIDATA_CACHE_TTL = 1000 * 60 * 60 * 24;
+const MIN_RECOMMENDATIONS = 18;
+const PAGE_SIZE = 24;
 
 let map;
 let markerLayer;
 let scheduled = false;
 let locationIndex = new Map();
+let visibleCount = PAGE_SIZE;
 
 const state = {
   weather: null,
@@ -62,7 +67,8 @@ const state = {
   })),
   extraLocations: [],
   extrasLoaded: false,
-  extrasFailed: false
+  extrasFailed: false,
+  expandedMode: false
 };
 
 function getAllLocations() {
@@ -164,6 +170,12 @@ function filterLocations(locations, context) {
     const weatherMatch = filters.weather === 'ALL' || location.weather === 'ANY' || location.weather === filters.weather;
     return seasonMatch && timeMatch && moodMatch && weatherMatch;
   });
+}
+
+function relaxedFilter(locations) {
+  const moodValue = moodFilter.value;
+  if (moodValue === 'ALL') return locations;
+  return locations.filter((location) => location.mood === moodValue);
 }
 
 function scoreLocation(location, context, random) {
@@ -268,7 +280,9 @@ function renderCards(locations) {
     return;
   }
 
-  locations.forEach((location) => {
+  const visible = locations.slice(0, visibleCount);
+
+  visible.forEach((location) => {
     const card = document.createElement('div');
     card.className = 'card';
     const weatherTag = location.weather && location.weather !== 'ANY' ? `<span class="tag">${formatLabel(location.weather)}</span>` : '';
@@ -596,7 +610,7 @@ async function fetchWikidataLocations() {
   const cached = loadFromCache(WIKIDATA_CACHE_KEY, WIKIDATA_CACHE_TTL);
   if (cached) return cached;
 
-  const query = buildWikidataQuery(350);
+  const query = buildWikidataQuery(600);
   const url = `${WIKIDATA_API}?format=json&query=${encodeURIComponent(query)}`;
   const response = await fetch(url, {
     headers: {
@@ -681,15 +695,30 @@ function renderAll() {
   updateLocationIndex();
 
   const filtered = filterLocations(allLocations, context);
+  let recommendations = filtered;
+  let expanded = state.expandedMode;
+  if (!expanded && filtered.length < MIN_RECOMMENDATIONS) {
+    recommendations = relaxedFilter(allLocations);
+    expanded = true;
+  } else if (expanded) {
+    recommendations = relaxedFilter(allLocations);
+  }
+  if (recommendations.length === 0) {
+    recommendations = allLocations;
+    expanded = true;
+  }
+
   const todaySelection = getDailySelection(state.baseLocations, context, 3);
   const todayIds = new Set(todaySelection.map((loc) => loc.id));
 
   renderTodaySelection(todaySelection);
-  renderCards(filtered);
+  renderCards(recommendations);
   renderMap(filtered.length > 0 ? filtered : allLocations, todayIds);
 
   if (cardCount) {
-    cardCount.textContent = `Showing ${filtered.length} of ${allLocations.length} locations`;
+    const showing = Math.min(recommendations.length, visibleCount);
+    const status = expanded ? 'Expanded' : 'Filtered';
+    cardCount.textContent = `${status}: ${showing} of ${recommendations.length} locations`;
   }
   if (mapCount) {
     mapCount.textContent = `Map markers: ${filtered.length > 0 ? filtered.length : allLocations.length}`;
@@ -701,6 +730,16 @@ function renderAll() {
       extraStatus.textContent = 'Live locations unavailable';
     } else {
       extraStatus.textContent = 'Loading more locations…';
+    }
+  }
+  if (expandToggle) {
+    expandToggle.textContent = state.expandedMode ? 'Use strict filters' : 'Expand recommendations';
+  }
+  if (showMoreButton) {
+    if (recommendations.length > visibleCount) {
+      showMoreButton.style.display = 'inline-flex';
+    } else {
+      showMoreButton.style.display = 'none';
     }
   }
 }
@@ -756,7 +795,9 @@ async function loadExtras() {
   }
 
   state.extraLocations = dedupeLocations(extras);
-  state.extrasLoaded = true;
+  const allFailed = wikipediaResult.status === 'rejected' && wikidataResult.status === 'rejected';
+  state.extrasLoaded = !allFailed;
+  state.extrasFailed = allFailed;
   scheduleRender();
 }
 
@@ -788,17 +829,46 @@ async function init() {
   }
 }
 
-seasonFilter.addEventListener('change', renderAll);
-timeFilter.addEventListener('change', renderAll);
-weatherFilter.addEventListener('change', renderAll);
-moodFilter.addEventListener('change', renderAll);
+seasonFilter.addEventListener('change', () => {
+  visibleCount = PAGE_SIZE;
+  renderAll();
+});
+timeFilter.addEventListener('change', () => {
+  visibleCount = PAGE_SIZE;
+  renderAll();
+});
+weatherFilter.addEventListener('change', () => {
+  visibleCount = PAGE_SIZE;
+  renderAll();
+});
+moodFilter.addEventListener('change', () => {
+  visibleCount = PAGE_SIZE;
+  renderAll();
+});
 resetButton.addEventListener('click', () => {
   seasonFilter.value = 'AUTO';
   timeFilter.value = 'AUTO';
   weatherFilter.value = 'AUTO';
   moodFilter.value = 'ALL';
+  state.expandedMode = false;
+  visibleCount = PAGE_SIZE;
   renderAll();
 });
+
+if (expandToggle) {
+  expandToggle.addEventListener('click', () => {
+    state.expandedMode = !state.expandedMode;
+    visibleCount = PAGE_SIZE;
+    renderAll();
+  });
+}
+
+if (showMoreButton) {
+  showMoreButton.addEventListener('click', () => {
+    visibleCount += PAGE_SIZE;
+    renderAll();
+  });
+}
 
 cardsRoot.addEventListener('click', handlePreviewClick);
 todayList.addEventListener('click', handlePreviewClick);

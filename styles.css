@@ -349,6 +349,22 @@ main {
   border-radius: 999px;
 }
 
+.ghost {
+  border: 1px solid rgba(15, 17, 23, 0.15);
+  background: transparent;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.ghost:hover {
+  background: rgba(15, 17, 23, 0.06);
+}
+
 .map-section {
   background: #fff;
   padding: 32px;
